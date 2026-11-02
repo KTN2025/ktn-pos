@@ -97,6 +97,8 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0;height:100%}
 .item:active{transform:scale(.97)}
 .item,.nav,.chip,.tbl,.line{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .item .ph{height:74px;background:var(--hue,var(--brand-soft));display:flex;align-items:flex-end;padding:8px 10px;font-weight:600;font-size:12px;letter-spacing:.04em;color:rgba(0,0,0,.45);background-size:cover;background-position:center}
+.item .ph.pic{height:auto;aspect-ratio:1/1;padding:0;background:var(--sunk);overflow:hidden}
+.item .ph.pic img{width:100%;height:100%;object-fit:cover;display:block}
 .item .meta{padding:8px 10px 10px;display:flex;flex-direction:column;gap:2px;flex:1}
 .item .nm{font-weight:600;line-height:1.25;font-size:14.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .item .pr{margin-top:auto;font-weight:700;color:var(--brand);font-size:15px}
@@ -609,7 +611,7 @@ function renderGrid(){
   const list=S.menu.filter(m=>m.on&&(curCat==='all'||m.cat===curCat)&&(!q||norm(m.name).includes(q)));
   $('#grid').innerHTML=list.length?list.map(m=>`
     <button class="item ${m.out?'out':''}" data-a="addItem" data-id="${m.id}" style="--hue:${catHue(m.cat)}">
-      <div class="ph" ${m.img?`style="background-image:url('${m.img}')"`:''}>${m.img?'':esc((S.cats.find(c=>c.id===m.cat)||{}).name||'')}</div>
+      ${m.img?`<div class="ph pic"><img src="${m.img}" alt=""></div>`:`<div class="ph">${esc((S.cats.find(c=>c.id===m.cat)||{}).name||'')}</div>`}
       <div class="meta"><span class="nm">${esc(m.name)}</span><span class="pr num">฿${fmt(m.price)}</span></div>
       ${counts[m.id]?`<span class="qty num">${counts[m.id]}</span>`:''}
     </button>`).join(''):`<div class="empty">ไม่พบเมนู${searchQ?'ที่ตรงกับ “'+esc(searchQ)+'”':''} — เพิ่มเมนูได้ที่ ตั้งค่า › เมนู</div>`;
@@ -952,7 +954,7 @@ function setShop(){
 }
 function setMenu(){
   $('#sbody').innerHTML=`${S.settings.gasUrl&&!S.settings.mainDevice?'<div class="note" style="margin-bottom:10px">เครื่องนี้รับเมนูจาก<b>เครื่องหลัก</b>อัตโนมัติ ให้แก้เมนู/ราคา/ของหมดที่เครื่องหลัก (ถ้าแก้ที่นี่จะถูกทับในรอบถัดไป)</div>':''}
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px"><button class="btn primary" data-a="menuNew">+ เพิ่มเมนู</button><button class="btn" data-a="catManage">จัดการหมวดหมู่</button><button class="btn" data-a="pullCosts">ดึงต้นทุนจาก K-Food cost</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px"><button class="btn primary" data-a="menuNew">+ เพิ่มเมนู</button><button class="btn" data-a="catManage">จัดการหมวดหมู่</button><button class="btn" data-a="pullCosts">ดึงต้นทุนจาก K-Food cost</button><button class="btn" data-a="pullPhotos">ดึงรูปจาก K-Food cost</button></div>
     ${S.cats.map(c=>{const ms=S.menu.filter(m=>m.cat===c.id);return `<div class="sect"><h3>${esc(c.name)} <small class="lbl">(${ms.length})</small></h3></div><div class="mlist">${ms.map(menuRow).join('')||'<span class="lbl">ยังไม่มีเมนูในหมวดนี้</span>'}</div>`}).join('')}
     ${S.menu.filter(m=>!S.cats.find(c=>c.id===m.cat)).length?`<div class="sect"><h3>ไม่มีหมวด</h3></div><div class="mlist">${S.menu.filter(m=>!S.cats.find(c=>c.id===m.cat)).map(menuRow).join('')}</div>`:''}`;
 }
@@ -1113,17 +1115,31 @@ async function pullCosts(){
   }
 }
 let costMatch=null;
-function shrinkImg(src,max){return new Promise(res=>{if(!/^data:image/.test(src)){res(src);return}const img=new Image();img.onload=()=>{try{const sc=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.72))}catch(e){res(src)}};img.onerror=()=>res('');img.src=src})}
-async function pullKfcPhotos(){
-  const has=new Set(S.costCache.items.filter(x=>x.hasImg).map(x=>x.id));
-  const want=S.menu.filter(m=>m.kfcId&&has.has(m.kfcId)&&(!m.img||m.imgSrc==='kfc'));
+function shrinkImg(src,max){return new Promise(res=>{if(!/^data:image/.test(src)){res(src);return}const img=new Image();img.onload=()=>{try{
+  const W=img.width,H=img.height,c0=document.createElement('canvas');c0.width=W;c0.height=H;const x0=c0.getContext('2d');x0.drawImage(img,0,0);
+  let d=null;try{d=x0.getImageData(0,0,W,H).data}catch(e){}
+  let L=0,T=0,R=W-1,B=H-1;
+  if(d){const bg=(i)=>d[i+3]<20||(d[i]>245&&d[i+1]>245&&d[i+2]>245);const col=xx=>{for(let y=0;y<H;y+=2)if(!bg((y*W+xx)*4))return false;return true};const row=yy=>{for(let xx=0;xx<W;xx+=2)if(!bg((yy*W+xx)*4))return false;return true};
+    while(L<R&&col(L))L++;while(R>L&&col(R))R--;while(T<B&&row(T))T++;while(B>T&&row(B))B--;}
+  const cw=R-L+1,ch=B-T+1;const sc=Math.min(1,max/Math.max(cw,ch));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(cw*sc));c.height=Math.max(1,Math.round(ch*sc));
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,L,T,cw,ch,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.75))}catch(e){res(src)}};img.onerror=()=>res('');img.src=src})}
+async function pullKfcPhotos(manual){
+  const linked=S.menu.filter(m=>m.kfcId);
+  if(!linked.length){if(manual)toast('ยังไม่มีเมนูที่ผูกกับ K-Food cost — กด “ดึงต้นทุนจาก K-Food cost” แล้วเพิ่มเมนูจากรายการก่อน');return}
+  if(!S.settings.gasUrl||!navigator.onLine){if(manual)toast('ต้องออนไลน์และใส่ลิงก์ Web App ก่อน');return}
+  const want=linked.filter(m=>manual||!m.img||m.imgSrc==='kfc');
   if(!want.length)return;
-  toast('กำลังดึงรูปเมนู '+want.length+' รูป…');let n=0;
+  if(manual)toast('กำลังดึงรูปเมนู '+want.length+' รายการ…');let n=0,none=0;
   for(let i=0;i<want.length;i+=10){const part=want.slice(i,i+10);
     try{const j=await api('GET',{action:'fcPhotos',ids:part.map(m=>m.kfcId).join(',')});
-      for(const m of part){const src=(j.photos||{})[m.kfcId];if(src){const small=await shrinkImg(src,320);if(small){m.img=small;m.imgSrc='kfc';n++}}}
-      saveNow()}catch(e){toast('ดึงรูปไม่สำเร็จ: '+e.message);break}}
-  if(n){toast('ดึงรูปเมนูแล้ว '+n+' รูป');if(view==='sell')renderGrid();else if(view==='settings')renderSettings()}
+      for(const m of part){const src=(j.photos||{})[m.kfcId];if(!src){none++;continue}
+        if(m.img&&m.imgSrc!=='kfc'&&!manual)continue;
+        if(m.img&&m.imgSrc==='own')continue;
+        const small=await shrinkImg(src,320);if(small){m.img=small;m.imgSrc='kfc';n++}}
+      saveNow()}catch(e){if(manual)toast(/ไม่รู้จักคำสั่ง/.test(e.message)?'Code.gs ยังเป็นเวอร์ชันเก่า: วาง Code.gs ใหม่ แล้ว “ทำให้ใช้งานได้ › เวอร์ชันใหม่”':'ดึงรูปไม่สำเร็จ: '+e.message);return}}
+  if(view==='sell')renderGrid();else if(view==='settings')renderSettings();
+  if(manual)toast(n?'ได้รูปเมนู '+n+' รายการ'+(none?' · ไม่มีรูปใน K-Food cost '+none+' รายการ':''):'ไม่พบรูปใน K-Food cost สำหรับเมนูเหล่านี้')
+  else if(n)toast('ดึงรูปเมนูแล้ว '+n+' รูป');
 }
 function kfcShops(){const set=new Set();S.costCache.items.forEach(x=>(x.shops||[]).forEach(v=>set.add(v)));return [...set]}
 function applyCosts(){
@@ -1255,6 +1271,7 @@ const A={
   catUp(el){const i=+el.dataset.i;if(!i)return;saveCatNames();[S.cats[i-1],S.cats[i]]=[S.cats[i],S.cats[i-1]];save();A.catManage()},
   catDone(){saveCatNames();save();closeModal();setMenu()},
   pullCosts(){pullCosts()},
+  pullPhotos(){pullKfcPhotos(true)},
   applyCosts(){const {matched,missing}=costMatch;const st=S.settings;
     matched.forEach(({m,x})=>{m.cost=r2(x.cost);m.costSrc='kfc';if(x.id)m.kfcId=x.id;if(st.kfcPrice&&x.price)m.price=+x.price});
     const picks=[...document.querySelectorAll('.addm:checked')].map(cb=>missing[+cb.value]);
@@ -1308,11 +1325,12 @@ function askPin(cb,min,title){pinBuf='';pinCb=cb;pinMin=min||'manager';pinTitle=
 function dots(n){return `<div class="pindots">${Array.from({length:Math.max(4,n)},(_,i)=>`<i class="${i<n?'f':''}"></i>`).join('')}</div>`}
 function padHTML(act){return `<div class="pinpad">${['1','2','3','4','5','6','7','8','9','C','0','⌫'].map(k=>`<button data-a="${act}" data-k="${k}">${k}</button>`).join('')}</div>`}
 function drawPin(msg){modal(mh('ใส่ PIN '+ROLE_TH[pinMin]+(pinMin!=='owner'?'หรือเจ้าของ':''))+`<div class="mb">${pinTitle?`<p class="lbl" style="text-align:center;margin:0 0 12px">เพื่อ${esc(pinTitle)}</p>`:''}${dots(pinBuf.length)}<p style="text-align:center;color:var(--danger);min-height:22px;margin:8px 0 0">${msg||''}</p>${padHTML('pinKey')}</div>`)}
+function pinMax(){return Math.max(4,...S.users.map(u=>String(u.pin).length))}
 function pinStep(buf,k){if(k==='⌫')return buf.slice(0,-1);if(k==='C')return '';return buf.length<6?buf+k:buf}
 A.pinKey=el=>{pinBuf=pinStep(pinBuf,el.dataset.k);
   const u=S.users.find(x=>x.pin===pinBuf);
   if(u){if(RANK[u.role]>=RANK[pinMin]){const cb=pinCb;closeModal();cb&&cb(u);return}pinBuf='';return drawPin('PIN นี้ไม่มีสิทธิ์ทำรายการนี้')}
-  if(pinBuf&&!S.users.some(x=>x.pin.startsWith(pinBuf))){pinBuf='';return drawPin('PIN ไม่ถูกต้อง')}
+  if(pinBuf.length>=pinMax()||(pinBuf.length>=4&&!S.users.some(x=>x.pin.length>pinBuf.length))){pinBuf='';return drawPin('PIN ไม่ถูกต้อง')}
   drawPin()};
 
 /* lock screen */
@@ -1336,7 +1354,7 @@ A.lockKey=el=>{lockBuf=pinStep(lockBuf,el.dataset.k);lockMsg='';
   if(u){S.session={uid:u.id,at:Date.now()};lockBuf='';actAs=null;lastAct=Date.now();saveNow();
     if(view==='settings'||view==='reports'){if(!can('manager'))view='sell'}
     render();toast('สวัสดี '+u.name);return}
-  if(lockBuf&&!S.users.some(x=>x.pin.startsWith(lockBuf))){lockBuf='';lockMsg='PIN ไม่ถูกต้อง'}
+  if(lockBuf.length>=pinMax()||(lockBuf.length>=4&&!S.users.some(x=>x.pin.length>lockBuf.length))){lockBuf='';lockMsg='PIN ไม่ถูกต้อง'}
   renderLock()};
 function renderUserChip(){const u=me();const c=$('#userChip');if(!c)return;
   c.innerHTML=u?`<span class="av">${esc(initials(u.name))}</span><b>${esc(u.name)}</b><span>${ROLE_TH[u.role]}</span>`:''}
@@ -1573,9 +1591,8 @@ A.themeMode=el=>{S.settings.theme={...(S.settings.theme||{}),mode:el.dataset.v};
 
 /* ================= v3: sound ================= */
 let actx=null;
-function beep(times){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();let t=actx.currentTime;
-  for(let i=0;i<(times||2);i++){const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.value=i%2?1320:880;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.5,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.28);o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+.3);t+=.34}}catch(e){}}
-
+function beep(times){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();let t=actx.currentTime;const notes=[988,784,1175];
+  for(let i=0;i<(times||2);i++){const o=actx.createOscillator(),g=actx.createGain();o.type='triangle';o.frequency.value=notes[i%3];g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.9,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.45);o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+.5);t+=.5}}catch(e){}}
 /* ================= v3: KITCHEN ================= */
 function kset(){return S.settings.kitchen||{}}
 function unsent(b){return b.items.filter(l=>l.qty>(l.sent||0)).map(l=>({name:l.name,qty:l.qty-(l.sent||0),opts:(l.opts||[]).map(o=>o.name),note:l.note||''}))}
@@ -1618,12 +1635,19 @@ A.sendKitchen=()=>{const b=cur();if(sendKitchen(b))toast('ส่งครัว�
 /* ================= v3: QR ORDERS (POS side) ================= */
 let qrVer='',qrInbox=[],qrSeen=new Set(),qrT=null;
 function qrOn(){return !!(S.settings.qr||{}).on&&!!S.settings.gasUrl}
-async function pollQr(){clearTimeout(qrT);if(!qrOn()){qrT=null;return}
+let alarmT=null,muteUntil=0;
+function alarmTick(){if(!qrInbox.length){stopAlarm();return}if(Date.now()>muteUntil)beep(3)}
+function startAlarm(){if(alarmT)return;alarmTick();alarmT=setInterval(alarmTick,2500)}
+function stopAlarm(){clearInterval(alarmT);alarmT=null}
+async function pollQr(){clearTimeout(qrT);if(!qrOn()){qrT=null;stopAlarm();return}
   if(navigator.onLine&&S.session){try{const j=await api('GET',{action:'qrList',since:qrVer});if(!j.same){qrVer=j.ver;qrInbox=j.orders||[];
-    const nw=qrInbox.filter(o=>!qrSeen.has(o.id));if(nw.length){beep(4);toast('🛎️ ออเดอร์ QR ใหม่ '+nw.length+' รายการ')}qrInbox.forEach(o=>qrSeen.add(o.id));updQrBadge()}}catch(e){}}
-  qrT=setTimeout(pollQr,8000)}
-function updQrBadge(){const b=$('#qrBtn');if(b){b.hidden=!qrOn();b.innerHTML='ออเดอร์ QR'+(qrInbox.length?` <span class="count">${qrInbox.length}</span>`:'');b.classList.toggle('ring',!!qrInbox.length)}}
-A.qrInbox=()=>{modal(mh('ออเดอร์จากลูกค้า (QR)',`<button class="btn sm" data-a="qrRefresh">โหลดใหม่</button>`)+`<div class="mb">${qrInbox.length?`<div class="mlist">${qrInbox.map(o=>`<div class="panel" style="display:grid;gap:8px"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:18px">${esc(o.tableName||'กลับบ้าน')}</b><span class="lbl">${tstr(o.at)}</span></div>
+    const nw=qrInbox.filter(o=>!qrSeen.has(o.id));qrInbox.forEach(o=>qrSeen.add(o.id));updQrBadge();
+    if(nw.length){muteUntil=0;toast('🛎️ ออเดอร์ QR ใหม่ '+nw.length+' รายการ');if(!$('#modalRoot').innerHTML)A.qrInbox()}}}catch(e){}}
+  if(qrInbox.length)startAlarm();else stopAlarm();
+  qrT=setTimeout(pollQr,qrInbox.length?5000:8000)}
+function updQrBadge(){if(!qrInbox.length)stopAlarm();const b=$('#qrBtn');if(b){b.hidden=!qrOn();b.innerHTML='ออเดอร์ QR'+(qrInbox.length?` <span class="count">${qrInbox.length}</span>`:'');b.classList.toggle('ring',!!qrInbox.length)}}
+A.qrMute=()=>{muteUntil=Date.now()+60000;toast('ปิดเสียง 1 นาที')};
+A.qrInbox=()=>{modal(mh('ออเดอร์จากลูกค้า (QR)',`${qrInbox.length?'<button class="btn sm" data-a="qrMute">ปิดเสียง 1 นาที</button>':''}<button class="btn sm" data-a="qrRefresh">โหลดใหม่</button>`)+`<div class="mb">${qrInbox.length?`<div class="mlist">${qrInbox.map(o=>`<div class="panel" style="display:grid;gap:8px"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:18px">${esc(o.tableName||'กลับบ้าน')}</b><span class="lbl">${tstr(o.at)}</span></div>
     ${o.items.map(i=>`<div class="rr" style="display:flex;justify-content:space-between"><span>${i.qty} × ${esc(i.name)}${i.opts&&i.opts.length?' <small class="lbl">('+esc(i.opts.map(x=>x.name).join(', '))+')</small>':''}${i.note?' <small class="lbl">“'+esc(i.note)+'”</small>':''}</span></div>`).join('')}
     ${o.note?`<div class="note">${esc(o.note)}</div>`:''}<div style="display:flex;gap:8px;justify-content:flex-end;align-items:center"><b class="num" style="margin-right:auto">฿${fmt(o.total)}</b><button class="btn danger" data-a="qrReject" data-id="${o.id}">ปฏิเสธ</button><button class="btn primary" data-a="qrAccept" data-id="${o.id}">รับออเดอร์</button></div></div>`).join('')}</div>`:'<p class="lbl">ไม่มีออเดอร์ใหม่</p>'}</div>`,'wide')};
 A.qrRefresh=()=>{qrVer='';pollQr().then(A.qrInbox)};
@@ -1665,7 +1689,7 @@ function applyCfg(c,ver){const imgs={},src={};S.menu.forEach(m=>{imgs[m.id]=m.im
   const st=S.settings;const keep={device:st.device,qrImage:st.qrImage,gasUrl:st.gasUrl,mainDevice:st.mainDevice,uiScale:st.uiScale,paper:st.paper,kitchen:st.kitchen,lockMin:st.lockMin,publicUrl:st.publicUrl,kfcImg:st.kfcImg};
   Object.assign(S,{pay:c.pay,cats:c.cats,menu:c.menu.map(m=>({...m,img:imgs[m.id]||'',imgSrc:src[m.id]})),zones:c.zones,tables:c.tables,decos:c.decos||[]});
   S.settings={...S.settings,...c.settings,...keep};S.demo=false;S.cfgVer=ver||S.cfgVer;S.cfgHash=strHash(JSON.stringify(cfgPayload()));saveNow();applyTheme();
-  if(S.menu.some(m=>m.kfcId&&!m.img)&&st.kfcImg!==false){api('GET',{action:'costs'}).then(j=>{S.costCache={at:Date.now(),items:j.items||[]};pullKfcPhotos()}).catch(()=>{})}
+  if(S.menu.some(m=>m.kfcId&&!m.img)&&st.kfcImg!==false)pullKfcPhotos(false);
   if(!$('#modalRoot').innerHTML&&view!=='settings')render()}
 async function autoPullCfg(){if(!S.settings.gasUrl||!navigator.onLine)return;
   try{const j=await api('GET',{action:'getConfig',since:S.cfgVer||''});if(j.same||!j.config)return;
@@ -1801,6 +1825,7 @@ if('serviceWorker' in navigator&&location.protocol==='https:'&&!/claude\.ai|clau
 }
 
 load();applyTheme();applyScale();render();checkCompat();pollQr();
+if(!S.imgTrim){(async()=>{for(const m of S.menu){if(m.img&&/^data:image/.test(m.img)){const t=await shrinkImg(m.img,320);if(t)m.img=t}}S.imgTrim=1;saveNow();if(view==='sell')renderGrid()})()}
 setInterval(()=>{if(+S.settings.lockMin>0&&S.session&&Date.now()-lastAct>S.settings.lockMin*60000){S.session=null;actAs=null;closeModal();saveNow();render()}},15000);
 })();
 </script>
