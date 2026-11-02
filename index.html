@@ -42,7 +42,8 @@
   color-scheme:dark}
 [hidden]{display:none!important}
 *{box-sizing:border-box}
-html,body{height:100%}
+html{height:100%}
+body{height:var(--appH,100%);width:var(--appW,auto);overflow:hidden}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-ui);-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none;padding:0;touch-action:manipulation}
@@ -216,7 +217,7 @@ table.data tr.void td{color:var(--muted);text-decoration:line-through}
 .plan-editor{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px;align-items:start}
 
 /* ---------- MODAL ---------- */
-.modal-bg{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(8,20,16,.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;padding-top:max(16px,env(safe-area-inset-top,0px));padding-bottom:max(16px,env(safe-area-inset-bottom,0px))}
+.modal-bg{position:fixed;top:0;left:0;width:var(--appW,100%);height:var(--appH,100%);background:rgba(8,20,16,.5);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;padding-top:max(16px,env(safe-area-inset-top,0px));padding-bottom:max(16px,env(safe-area-inset-bottom,0px))}
 .modal{background:var(--surface);border-radius:18px;width:min(520px,100%);max-height:100%;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden}
 .modal.wide{width:min(980px,100%)}
 .modal.full{width:100%;height:100%;max-width:1180px}
@@ -233,14 +234,15 @@ table.data tr.void td{color:var(--muted);text-decoration:line-through}
 .qtybig .stepper span{min-width:50px;font-size:24px}
 
 /* payment */
-.pay{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);height:100%}
-.pay-left{background:var(--sunk);padding:18px;display:flex;flex-direction:column;gap:12px;overflow:auto}
+.pay{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);flex:1;min-height:0}
+.pay-left{background:var(--sunk);padding:18px;min-height:0;display:flex;flex-direction:column;gap:12px;overflow:auto}
 .due{background:var(--brand);color:var(--brand-ink);border-radius:16px;padding:16px 18px}
 .due .k{opacity:.8;font-size:14px}
 .due .v{font-family:var(--f-display);font-size:44px;font-weight:700;line-height:1.05}
 .tender{display:flex;justify-content:space-between;align-items:center;background:var(--surface);border-radius:12px;padding:10px 12px;gap:8px}
 .tender small{color:var(--muted);display:block}
-.pay-right{padding:18px;display:flex;flex-direction:column;gap:14px;overflow:auto;min-width:0}
+.pay-right{padding:18px;display:flex;flex-direction:column;gap:14px;overflow:auto;min-width:0;min-height:0;-webkit-overflow-scrolling:touch}
+@media (max-height:820px){.pay-right,.pay-left{padding:12px;gap:10px}.amount-show{font-size:32px;padding:2px 14px}.due .v{font-size:36px}.method{min-height:58px;padding:8px 10px}.paybtn{height:52px}.mh{padding:10px 16px}}
 .methods{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
 .method{border:1.5px solid var(--line);border-radius:14px;padding:12px;text-align:left;display:flex;flex-direction:column;gap:2px;min-height:72px;background:var(--surface)}
 .method b{font-size:15px}
@@ -250,7 +252,7 @@ table.data tr.void td{color:var(--muted);text-decoration:line-through}
 .method.tct.on{background:var(--accent-soft)}
 .amount-show{font-family:var(--f-display);font-size:40px;font-weight:700;text-align:right;background:var(--sunk);border-radius:14px;padding:6px 16px}
 .keypad{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.keypad button{height:58px;border-radius:12px;background:var(--sunk);font-size:22px;font-weight:600}
+.keypad button{height:clamp(44px,6.2vh,58px);border-radius:12px;background:var(--sunk);font-size:22px;font-weight:600}
 .keypad button.q{background:var(--accent-soft);font-size:16px}
 .keypad button.wide{grid-column:span 2}
 .change{display:flex;justify-content:space-between;align-items:baseline;background:var(--accent-soft);border-radius:12px;padding:10px 16px}
@@ -303,7 +305,7 @@ table.data tr.void td{color:var(--muted);text-decoration:line-through}
   .modal.full{height:auto}
 }
 /* lock screen, shift, user chip */
-#lock{position:fixed;top:0;left:0;right:0;bottom:0;z-index:70;background:var(--brand-2);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px}
+#lock{position:fixed;top:0;left:0;width:var(--appW,100%);height:var(--appH,100%);overflow:auto;z-index:70;background:var(--brand-2);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px}
 #lock .lk{display:flex;flex-direction:column;align-items:center;gap:14px;width:min(360px,100%)}
 #lock h1{font-size:28px;color:#fff;text-align:center}
 #lock .sub{color:rgba(255,255,255,.7);text-align:center;font-size:14px}
@@ -743,7 +745,7 @@ function drawPay(){
     <div class="pay-right">
       <div class="methods">${S.pay.filter(p=>p.on).map(p=>`<button class="method ${p.type==='tct'?'tct':''} ${p.id===ps.method?'on':''}" data-a="pm" data-id="${p.id}"><b>${esc(p.name)}</b><small>${{cash:'ทอนเงินอัตโนมัติ',qr:'QR พร้อมยอดเงิน',tct:'รัฐ '+S.settings.tctRate+'% / ลูกค้า '+(100-S.settings.tctRate)+'%',other:'บันทึกยอด'}[p.type]}</small></button>`).join('')}</div>
       ${panel}
-      ${rem>0?`<button class="btn accent" style="height:56px;font-size:17px" data-a="addTender">${m.type==='cash'?'รับเงินสด':'ยืนยันรับชำระ'} ฿${fmt(Math.min(amt,rem)||0)}${m.type==='cash'&&amt>rem?' · ทอน '+fmt(amt-rem):''}</button>`:''}
+      ${rem>0?`<button class="btn accent" style="height:56px;font-size:17px;position:sticky;bottom:0;flex:none;box-shadow:0 -8px 16px var(--surface)" data-a="addTender">${m.type==='cash'?'รับเงินสด':'ยืนยันรับชำระ'} ฿${fmt(Math.min(amt,rem)||0)}${m.type==='cash'&&amt>rem?' · ทอน '+fmt(amt-rem):''}</button>`:''}
     </div>
   </div>`,'full');
   const cv=$('#ppqr'); if(cv) drawPromptPay(cv,S.settings.promptpay,amt);
@@ -759,6 +761,7 @@ function addTender(){
   else if(amt>rem) return toast('ยอดเกินที่ต้องชำระ');
   if(m.type==='tct'){t.gov=Math.min(r2(t.amount*S.settings.tctRate/100),+ps.cap||0);t.cust=r2(t.amount-t.gov)}
   ps.tenders.push(t);ps.input='';
+  if(payRemaining()<=0){finishPay();return}
   drawPay();
 }
 function finishPay(){
@@ -1503,7 +1506,10 @@ function printHTML(html){
   st.textContent=`@media print{#printArea{width:${w}mm!important}@page{size:${S.settings.paper}mm auto;margin:3mm}}`;
   $('#printArea').innerHTML=html;window.print();
 }
-function applyScale(){const z=+S.settings.uiScale||1;document.body.style.zoom=z===1?'':z;document.body.style.height=z===1?'':(100/z)+'vh'}
+function applyScale(){const z=+S.settings.uiScale||1;document.body.style.zoom=z===1?'':z;fitScreen()}
+function fitScreen(){const z=+((S&&S.settings&&S.settings.uiScale)||1);const r=document.documentElement.style;
+  r.setProperty('--appH',Math.floor(window.innerHeight/z)+'px');r.setProperty('--appW',Math.floor(window.innerWidth/z)+'px')}
+window.addEventListener('resize',()=>fitScreen());window.addEventListener('orientationchange',()=>setTimeout(fitScreen,300));
 function compatInfo(){
   const ua=navigator.userAgent,m=ua.match(/Chrome\/(\d+)/),chrome=m?+m[1]:0;
   const t=document.createElement('div');t.style.cssText='display:flex;flex-direction:column;row-gap:1px;position:absolute;visibility:hidden';t.innerHTML='<i></i><i></i>';document.body.appendChild(t);const fgap=t.scrollHeight===1;t.remove();
