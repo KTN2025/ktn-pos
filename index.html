@@ -501,7 +501,7 @@ function load(){
 }
 let saveT=null;
 function save(){clearTimeout(saveT);saveT=setTimeout(saveNow,150)}
-function saveNow(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('พื้นที่เก็บข้อมูลในเครื่องเต็ม ลองลดขนาดรูปเมนู หรือสำรองแล้วล้างบิลเก่า')}}
+function saveNow(){if(S&&S.settings&&S.settings.qr&&S.settings.qr.on&&typeof pushTableBills==='function')pushTableBills();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('พื้นที่เก็บข้อมูลในเครื่องเต็ม ลองลดขนาดรูปเมนู หรือสำรองแล้วล้างบิลเก่า')}}
 
 /* ================= calculations ================= */
 function lineUnit(l){return r2(l.price+(l.opts||[]).reduce((a,o)=>a+(+o.price||0),0))}
@@ -1633,27 +1633,50 @@ A.kdsUndo=async el=>{const t=kdsData.find(x=>x.id===el.dataset.id);if(t){t.statu
 A.sendKitchen=()=>{const b=cur();if(sendKitchen(b))toast('ส่งครัวแล้ว');renderCart()};
 
 /* ================= v3: QR ORDERS (POS side) ================= */
-let qrVer='',qrInbox=[],qrSeen=new Set(),qrT=null;
+let qrVer='',qrInbox=[],qrCalls=[],qrSeen=new Set(),qrT=null;
+function qrPending(){return qrInbox.length+qrCalls.length}
 function qrOn(){return !!(S.settings.qr||{}).on&&!!S.settings.gasUrl}
 let alarmT=null,muteUntil=0;
-function alarmTick(){if(!qrInbox.length){stopAlarm();return}if(Date.now()>muteUntil)beep(3)}
-function startAlarm(){if(alarmT)return;alarmTick();alarmT=setInterval(alarmTick,2500)}
+function alarmTick(){if(!qrPending()){stopAlarm();return}if(Date.now()>muteUntil)beep(8)}
+function startAlarm(){if(alarmT)return;alarmTick();alarmT=setInterval(alarmTick,4300)}
 function stopAlarm(){clearInterval(alarmT);alarmT=null}
 async function pollQr(){clearTimeout(qrT);if(!qrOn()){qrT=null;stopAlarm();return}
-  if(navigator.onLine&&S.session){try{const j=await api('GET',{action:'qrList',since:qrVer});if(!j.same){qrVer=j.ver;qrInbox=j.orders||[];
-    const nw=qrInbox.filter(o=>!qrSeen.has(o.id));qrInbox.forEach(o=>qrSeen.add(o.id));updQrBadge();
-    if(nw.length){muteUntil=0;toast('🛎️ ออเดอร์ QR ใหม่ '+nw.length+' รายการ');if(!$('#modalRoot').innerHTML)A.qrInbox()}}}catch(e){}}
-  if(qrInbox.length)startAlarm();else stopAlarm();
-  qrT=setTimeout(pollQr,qrInbox.length?5000:8000)}
-function updQrBadge(){if(!qrInbox.length)stopAlarm();const b=$('#qrBtn');if(b){b.hidden=!qrOn();b.innerHTML='ออเดอร์ QR'+(qrInbox.length?` <span class="count">${qrInbox.length}</span>`:'');b.classList.toggle('ring',!!qrInbox.length)}}
+  if(navigator.onLine&&S.session){try{const j=await api('GET',{action:'qrList',since:qrVer});if(!j.same){qrVer=j.ver;qrInbox=j.orders||[];qrCalls=j.calls||[];
+    const nw=[...qrInbox,...qrCalls].filter(o=>!qrSeen.has(o.id));[...qrInbox,...qrCalls].forEach(o=>qrSeen.add(o.id));updQrBadge();
+    if(nw.length){muteUntil=0;const c=nw.filter(x=>x.type==='call').length,pp=nw.filter(x=>x.type==='pay').length,od=nw.length-c-pp;
+      toast([od?'ออเดอร์ใหม่ '+od:'',c?'เรียกพนักงาน '+c:'',pp?'แจ้งชำระเงิน '+pp:''].filter(Boolean).join(' · '));if(!$('#modalRoot').innerHTML||$('#qrBox'))A.qrInbox()}}}catch(e){}}
+  if(qrPending())startAlarm();else stopAlarm();
+  qrT=setTimeout(pollQr,qrPending()?5000:8000)}
+function updQrBadge(){const n=qrPending();if(!n)stopAlarm();const b=$('#qrBtn');if(b){b.hidden=!qrOn();b.innerHTML='ลูกค้า QR'+(n?` <span class="count">${n}</span>`:'');b.classList.toggle('ring',!!n)}}
+A.callDone=async el=>{const id=el.dataset.id;qrCalls=qrCalls.filter(x=>x.id!==id);updQrBadge();A.qrInbox();try{await api('POST',null,{action:'callDone',id,status:el.dataset.s||'รับทราบ'})}catch(e){toast('แจ้งกลับไม่สำเร็จ: '+e.message)}};
+A.payConfirm=async el=>{const c=qrCalls.find(x=>x.id===el.dataset.id);if(!c)return;const b=Object.values(S.bills).find(x=>x.tableId===c.tableId);
+  if(b){if(shiftGate()){A.shiftOpen();return}const cc=calc(b);if(kset().on)sendKitchen(b,true);
+    const o=makeOrder(b,cc,[{mid:'pp',name:'พร้อมเพย์ (ลูกค้าจ่ายเองผ่าน QR)',type:'qr',amount:cc.total}],null);settleMember(b,o);
+    S.orders.push(o);delete S.bills[b.id];if(S.cur===b.id)S.cur=null;saveNow();syncSoon();toast('ปิดบิลโต๊ะ '+c.tableName+' แล้ว ฿'+fmt(cc.total))}
+  qrCalls=qrCalls.filter(x=>x!==c);updQrBadge();pushTableBills(true);
+  try{await api('POST',null,{action:'callDone',id:c.id,status:'ชำระแล้ว'})}catch(e){}
+  if(qrPending())A.qrInbox();else closeModal();render()};
+let tbHash='',tbT=null;
+function pushTableBills(now){clearTimeout(tbT);tbT=setTimeout(async()=>{if(!qrOn()||!navigator.onLine)return;
+  const bills=Object.values(S.bills).filter(b=>b.tableId&&b.items.length).map(b=>{const c=calc(b);const t=S.tables.find(x=>x.id===b.tableId)||{};
+    return {tableId:b.tableId,tableName:t.name||'',items:b.items.map(l=>({name:l.name,qty:l.qty,price:lineUnit(l),opts:(l.opts||[]).map(o=>o.name)})),sub:c.sub,disc:r2(c.disc+(c.mdisc||0)),svc:c.svc,vat:c.vat,total:c.total,updatedAt:Date.now()}});
+  const h=strHash(JSON.stringify(bills.map(x=>[x.tableId,x.total,x.items.length])));if(h===tbHash&&!now)return;
+  try{await api('POST',null,{action:'tableBills',device:S.settings.device,bills});tbHash=h}catch(e){}},now?50:3000)}
 A.qrMute=()=>{muteUntil=Date.now()+60000;toast('ปิดเสียง 1 นาที')};
-A.qrInbox=()=>{modal(mh('ออเดอร์จากลูกค้า (QR)',`${qrInbox.length?'<button class="btn sm" data-a="qrMute">ปิดเสียง 1 นาที</button>':''}<button class="btn sm" data-a="qrRefresh">โหลดใหม่</button>`)+`<div class="mb">${qrInbox.length?`<div class="mlist">${qrInbox.map(o=>`<div class="panel" style="display:grid;gap:8px"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:18px">${esc(o.tableName||'กลับบ้าน')}</b><span class="lbl">${tstr(o.at)}</span></div>
+A.qrInbox=()=>{const calls=qrCalls.map(c=>{const b=Object.values(S.bills).find(x=>x.tableId===c.tableId);const tot=b?calc(b).total:0;
+    return c.type==='pay'?`<div class="panel" style="display:grid;gap:8px;border-left:6px solid var(--accent)"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:18px">โต๊ะ ${esc(c.tableName)} · แจ้งชำระเงินแล้ว</b><span class="lbl">${tstr(c.at)}</span></div>
+      <div>ลูกค้าแจ้งโอน <b class="num">฿${fmt(c.amount)}</b> · ยอดบิลในเครื่อง <b class="num">${b?'฿'+fmt(tot):'ไม่พบบิลโต๊ะนี้'}</b>${b&&Math.abs(tot-c.amount)>0.01?' <span class="pill bad">ยอดไม่ตรง</span>':''}</div>
+      ${c.slip?`<img src="${c.slip}" alt="สลิป" style="max-width:220px;border-radius:8px;border:1px solid var(--line)">`:'<span class="lbl">ไม่ได้แนบสลิป · ตรวจยอดเข้าในแอปธนาคาร</span>'}
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn danger" data-a="callDone" data-id="${c.id}" data-s="ยังไม่ได้รับเงิน">ยังไม่ได้รับเงิน</button><button class="btn primary" data-a="payConfirm" data-id="${c.id}">ได้รับเงินแล้ว · ปิดบิล</button></div></div>`
+    :`<div class="panel" style="display:flex;gap:10px;align-items:center;border-left:6px solid var(--brand)"><span style="flex:1"><b style="font-size:18px">โต๊ะ ${esc(c.tableName)} เรียกพนักงาน</b><br><span class="lbl">${esc(c.reason||'')} · ${tstr(c.at)}</span></span><button class="btn primary" data-a="callDone" data-id="${c.id}" data-s="รับทราบ">รับทราบ</button></div>`}).join('');
+  modal(mh('ลูกค้า QR',`${qrPending()?'<button class="btn sm" data-a="qrMute">ปิดเสียง 1 นาที</button>':''}<button class="btn sm" data-a="qrRefresh">โหลดใหม่</button>`)+`<div class="mb" id="qrBox">${calls?`<div class="mlist" style="margin-bottom:12px">${calls}</div>`:''}${qrInbox.length?`<div class="mlist">${qrInbox.map(o=>`<div class="panel" style="display:grid;gap:8px"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:18px">${esc(o.tableName||'กลับบ้าน')}${o.member?' <span class="pill ok">สมาชิก '+esc(o.member.slice(-4))+'</span>':''}</b><span class="lbl">${tstr(o.at)}</span></div>
     ${o.items.map(i=>`<div class="rr" style="display:flex;justify-content:space-between"><span>${i.qty} × ${esc(i.name)}${i.opts&&i.opts.length?' <small class="lbl">('+esc(i.opts.map(x=>x.name).join(', '))+')</small>':''}${i.note?' <small class="lbl">“'+esc(i.note)+'”</small>':''}</span></div>`).join('')}
-    ${o.note?`<div class="note">${esc(o.note)}</div>`:''}<div style="display:flex;gap:8px;justify-content:flex-end;align-items:center"><b class="num" style="margin-right:auto">฿${fmt(o.total)}</b><button class="btn danger" data-a="qrReject" data-id="${o.id}">ปฏิเสธ</button><button class="btn primary" data-a="qrAccept" data-id="${o.id}">รับออเดอร์</button></div></div>`).join('')}</div>`:'<p class="lbl">ไม่มีออเดอร์ใหม่</p>'}</div>`,'wide')};
+    ${o.note?`<div class="note">${esc(o.note)}</div>`:''}<div style="display:flex;gap:8px;justify-content:flex-end;align-items:center"><b class="num" style="margin-right:auto">฿${fmt(o.total)}</b><button class="btn danger" data-a="qrReject" data-id="${o.id}">ปฏิเสธ</button><button class="btn primary" data-a="qrAccept" data-id="${o.id}">รับออเดอร์</button></div></div>`).join('')}</div>`:(calls?'':'<p class="lbl">ไม่มีรายการใหม่</p>')}</div>`,'wide')};
 A.qrRefresh=()=>{qrVer='';pollQr().then(A.qrInbox)};
 A.qrAccept=async el=>{const o=qrInbox.find(x=>x.id===el.dataset.id);if(!o)return;if(shiftGate()){A.shiftOpen();return}
   let b=o.tableId?Object.values(S.bills).find(x=>x.tableId===o.tableId):null;
   if(!b){b={id:uid(),type:o.tableId?'dine':'take',tableId:o.tableId||null,items:[],disc:null,channel:'QR โต๊ะ',openedAt:Date.now(),note:o.tableId?'':'QR '+tstr(o.at)};S.bills[b.id]=b}
+  if(o.member&&mset().on){let mm=findMember(o.member);if(!mm){mm={phone:o.member,name:'',points:0,total:0,visits:0,updatedAt:0,synced:true};S.members.push(mm)}b.member=o.member}
   o.items.forEach(i=>{const m=S.menu.find(x=>x.id===i.mid);b.items.push({id:uid(),mid:i.mid,name:i.name,price:+i.price,cost:m?+m.cost||0:0,qty:i.qty,opts:(i.opts||[]).map(x=>({name:x.name,price:+x.price||0})),note:i.note||'',qr:true})});
   saveNow();qrInbox=qrInbox.filter(x=>x!==o);updQrBadge();
   if(kset().on&&kset().qrAuto)sendKitchen(b,true);
