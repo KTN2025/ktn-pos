@@ -1,5 +1,5 @@
 /* KTN POS – service worker: ทำให้เปิดแอปได้แม้ไม่มีอินเทอร์เน็ต */
-const CACHE='ktn-pos-v4';
+const CACHE='ktn-pos-v5';
 const SHELL=['./','./index.html','./manifest.json','./icon-180.png','./icon-192.png','./icon-512.png','./order.html',
   'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'];
 self.addEventListener('install',e=>{
