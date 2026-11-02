@@ -420,7 +420,7 @@ function defaults(){
       requireShift:true, discountMgr:false, lockMin:0, defaultFloat:1000, paper:80, uiScale:1,
       theme:{preset:'leaf',brand:'#0F5A48',accent:'#E3A21A',mode:'auto'},
       kitchen:{on:true,print:true,kds:false,onPay:true,qrAuto:false}, qr:{on:false},
-      member:{on:true,earnPer:25,redeemPts:10,redeemBaht:10}, publicUrl:'', mainDevice:true
+      member:{on:true,earnPer:25,redeemPts:10,redeemBaht:10}, publicUrl:'', mainDevice:false
     },
     pay:[
       {id:'cash',name:'เงินสด',type:'cash',on:true},
@@ -951,7 +951,7 @@ function setShop(){
   $('#chs').addEventListener('change',e=>{S.settings.channels=e.target.value.split(',').map(s=>s.trim()).filter(Boolean);save()});
 }
 function setMenu(){
-  $('#sbody').innerHTML=`
+  $('#sbody').innerHTML=`${S.settings.gasUrl&&!S.settings.mainDevice?'<div class="note" style="margin-bottom:10px">เครื่องนี้รับเมนูจาก<b>เครื่องหลัก</b>อัตโนมัติ ให้แก้เมนู/ราคา/ของหมดที่เครื่องหลัก (ถ้าแก้ที่นี่จะถูกทับในรอบถัดไป)</div>':''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px"><button class="btn primary" data-a="menuNew">+ เพิ่มเมนู</button><button class="btn" data-a="catManage">จัดการหมวดหมู่</button><button class="btn" data-a="pullCosts">ดึงต้นทุนจาก K-Food cost</button></div>
     ${S.cats.map(c=>{const ms=S.menu.filter(m=>m.cat===c.id);return `<div class="sect"><h3>${esc(c.name)} <small class="lbl">(${ms.length})</small></h3></div><div class="mlist">${ms.map(menuRow).join('')||'<span class="lbl">ยังไม่มีเมนูในหมวดนี้</span>'}</div>`}).join('')}
     ${S.menu.filter(m=>!S.cats.find(c=>c.id===m.cat)).length?`<div class="sect"><h3>ไม่มีหมวด</h3></div><div class="mlist">${S.menu.filter(m=>!S.cats.find(c=>c.id===m.cat)).map(menuRow).join('')}</div>`:''}`;
@@ -1060,8 +1060,9 @@ function setLink(){
     <p class="lbl" style="margin:0">Code.gs ของ POS อ่านแท็บ “สูตร” ของ KTN ต้นทุนอาหาร (เฉพาะประเภทสินค้า) แล้วส่งต้นทุนต่อหน่วย ราคาขาย และสาขากลับมา POS จับคู่ด้วยรหัสสูตร (ครั้งแรกจับคู่ด้วยชื่อ) เลือกสาขาเพื่อดึงเฉพาะเมนูของร้านนั้นได้ · สาขาที่เลือกอยู่: <b>${esc(S.settings.kfcShop||'ทุกสาขา')}</b></p>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn accent" data-a="pullCosts">ดึงต้นทุนล่าสุด</button></div>
     <p class="lbl" style="margin:0">${cc.at?'ดึงล่าสุด '+dstr(cc.at)+' '+tstr(cc.at)+' · '+cc.items.length+' สูตร':'ยังไม่เคยดึงต้นทุน'}</p>
-    <div class="sect"><h3>ใช้ iPad หลายเครื่อง</h3></div>
-    <p class="lbl" style="margin:0">ส่งเมนู ผังโต๊ะ และการตั้งค่าขึ้น Sheet จากเครื่องหลัก แล้วกดดึงบนเครื่องอื่น (รูปเมนูไม่ถูกส่ง)</p>
+    <div class="sect"><h3>ใช้หลายเครื่องร่วมกัน</h3></div>
+    ${T('เครื่องนี้เป็นเครื่องหลัก','เปิดเพียงเครื่องเดียว · เครื่องหลักส่งเมนู โต๊ะ ราคา ของหมด ขึ้น Sheet และเครื่องอื่นจะดึงไปใช้อัตโนมัติทุก 1 นาที','settings.mainDevice',st.mainDevice,true)}
+    <p class="lbl" style="margin:0">กดเองได้ที่ปุ่มด้านล่าง · รูปเมนูดึงจาก K-Food cost ในแต่ละเครื่อง · PIN ผู้ใช้ตั้งแยกแต่ละเครื่อง</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="pushCfg">ส่งการตั้งค่าขึ้น Sheet</button><button class="btn" data-a="pullCfg">ดึงการตั้งค่าจาก Sheet</button></div>
   </div>`;
   bindInputs($('#sbody'));
@@ -1093,7 +1094,7 @@ function syncSoon(){clearTimeout(syncT);syncT=setTimeout(()=>sync(false),800)}
 async function sync(manual){
   if(syncing) return; if(!S.settings.gasUrl){if(manual)toast('ใส่ลิงก์ Web App ที่ ตั้งค่า › เชื่อมต่อ ก่อน');return}
   if(!manual&&!S.settings.autoSync) return;
-  await syncShifts();await flushKitchen();await syncMembers();await autoPushCfg();
+  await syncShifts();await flushKitchen();await syncMembers();await autoPushCfg();await autoPullCfg();
   const pend=S.orders.filter(o=>!o.synced&&!o.demo).slice(0,40); if(!pend.length){if(manual)toast('ซิงก์ครบแล้ว');syncing=false;updateSync();return}
   syncing=true;
   try{const j=await api('POST',null,{action:'orders',device:S.settings.device,orders:pend});
@@ -1282,9 +1283,7 @@ const A={
   syncNow(){sync(true)},
   async pushCfg(){try{const c=JSON.parse(JSON.stringify({settings:S.settings,pay:S.pay,cats:S.cats,menu:S.menu,zones:S.zones,tables:S.tables,decos:S.decos}));c.menu.forEach(m=>m.img='');c.settings.qrImage='';delete c.settings.device;
     await api('POST',null,{action:'saveConfig',config:c});toast('ส่งการตั้งค่าขึ้น Sheet แล้ว')}catch(e){toast('ส่งไม่สำเร็จ: '+e.message)}},
-  async pullCfg(){try{const j=await api('GET',{action:'getConfig'});if(!j.config)return toast('ยังไม่มีการตั้งค่าใน Sheet');const c=j.config;const imgs={};S.menu.forEach(m=>imgs[m.id]=m.img);
-    const keep={device:S.settings.device,qrImage:S.settings.qrImage,gasUrl:S.settings.gasUrl};
-    Object.assign(S,{pay:c.pay,cats:c.cats,menu:c.menu.map(m=>({...m,img:imgs[m.id]||''})),zones:c.zones,tables:c.tables,decos:c.decos||[]});S.settings={...S.settings,...c.settings,...keep};S.demo=false;save();render();toast('ดึงการตั้งค่าแล้ว')}catch(e){toast('ดึงไม่สำเร็จ: '+e.message)}},
+  async pullCfg(){try{const j=await api('GET',{action:'getConfig'});if(!j.config)return toast('ยังไม่มีการตั้งค่าใน Sheet');applyCfg(j.config,j.ver);render();toast('ดึงการตั้งค่าแล้ว')}catch(e){toast('ดึงไม่สำเร็จ: '+e.message)}},
   clearDemo(){S.orders=S.orders.filter(o=>!o.demo);S.bills={};S.cur=null;S.demo=false;S.seq={d:'',n:0};S.q={d:'',n:0};
     if(S.shift&&S.shift.demo)S.shift=null;S.members=S.members.filter(m=>!m.demo);S.shifts=S.shifts.filter(x=>!x.demo);if(!S.shifts.length)S.shiftSeq=0;save();render();toast('ล้างบิลและกะตัวอย่างแล้ว')},
   backup(){download('ktn-pos-backup-'+dkey()+'.json',JSON.stringify(S),'application/json')},
@@ -1637,7 +1636,15 @@ A.qrAccept=async el=>{const o=qrInbox.find(x=>x.id===el.dataset.id);if(!o)return
   try{await api('POST',null,{action:'qrSet',id:o.id,status:'รับแล้ว',device:S.settings.device})}catch(e){toast('รับในเครื่องแล้ว แต่แจ้งกลับลูกค้าไม่สำเร็จ')}
   A.qrInbox();toast('เพิ่มเข้าบิล '+billLabel(b)+' แล้ว');if(view==='tables')renderTables();if(view==='sell')renderSell()};
 A.qrReject=async el=>{const id=el.dataset.id;qrInbox=qrInbox.filter(x=>x.id!==id);updQrBadge();A.qrInbox();try{await api('POST',null,{action:'qrSet',id,status:'ปฏิเสธ',device:S.settings.device})}catch(e){}};
-function orderUrl(t){const base=(S.settings.publicUrl||'').trim()||location.href.replace(/[#?].*$/,'').replace(/[^/]*$/,'');
+function appBase(){
+  const here=/^https?:/.test(location.protocol)&&!/claude|anthropic/.test(location.hostname)?location.href.replace(/[#?].*$/,'').replace(/[^/]*$/,''):'';
+  let pub=(S.settings.publicUrl||'').trim().replace(/[#?].*$/,'').replace(/(index|order)\.html$/,'');
+  if(pub&&!/^https?:\/\//.test(pub))pub='https://'+pub;
+  // github.io project sites need the repo folder: https://user.github.io/<repo>/
+  if(/\.github\.io\/?$/.test(pub))pub=here&&here.startsWith(pub.replace(/\/?$/,'/'))?here:pub.replace(/\/?$/,'/')+'ktn-pos/';
+  return (here||pub||'').replace(/\/?$/,'/');
+}
+function orderUrl(t){const base=appBase();
   return base.replace(/\/?$/,'/')+'order.html?api='+encodeURIComponent(S.settings.gasUrl)+(t?'&t='+encodeURIComponent(t.id)+'&n='+encodeURIComponent(t.name):'')}
 function qrDataUrl(text,size){try{const q=qrcode(0,'M');q.addData(text);q.make();const n=q.getModuleCount(),m=3,c=document.createElement('canvas');c.width=c.height=size;const x=c.getContext('2d'),cell=size/(n+m*2);
   x.fillStyle='#fff';x.fillRect(0,0,size,size);x.fillStyle='#000';for(let r=0;r<n;r++)for(let k=0;k<n;k++)if(q.isDark(r,k))x.fillRect(Math.floor((k+m)*cell),Math.floor((r+m)*cell),Math.ceil(cell),Math.ceil(cell));return c.toDataURL()}catch(e){return ''}}
@@ -1645,15 +1652,28 @@ A.qrTables=()=>{if(!S.settings.gasUrl)return toast('ต้องใส่ลิ�
   const list=[...S.tables.map(t=>({t,label:'โต๊ะ '+t.name})),{t:null,label:'สั่งกลับบ้าน'}];
   const cards=list.map(x=>({label:x.label,img:qrDataUrl(orderUrl(x.t),360)}));
   window._qrCards=cards;
-  modal(mh('QR สั่งอาหาร ('+cards.length+')')+`<div class="mb"><p class="lbl">ลิงก์หน้าเว็บ: ${esc(orderUrl(null).split('?')[0])}</p><div class="optgrid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${cards.map(c=>`<div class="panel" style="text-align:center;padding:10px"><img src="${c.img}" alt="QR ${esc(c.label)}" style="width:100%;background:#fff;border-radius:8px"><b>${esc(c.label)}</b></div>`).join('')}</div></div>
+  const test=orderUrl(list[0]&&list[0].t);
+  modal(mh('QR สั่งอาหาร ('+cards.length+')')+`<div class="mb"><div class="note info" style="margin-bottom:12px">ลิงก์ใน QR: <b style="word-break:break-all">${esc(orderUrl(null).split('?')[0])}</b><br>ก่อนพิมพ์ให้กด <a href="${esc(test)}" target="_blank" rel="noopener">เปิดทดสอบ</a> ต้องเห็นหน้าเมนูร้าน ถ้าขึ้น 404 แปลว่ายังไม่ได้อัปโหลด order.html ขึ้น GitHub</div><div class="optgrid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${cards.map(c=>`<div class="panel" style="text-align:center;padding:10px"><img src="${c.img}" alt="QR ${esc(c.label)}" style="width:100%;background:#fff;border-radius:8px"><b>${esc(c.label)}</b></div>`).join('')}</div></div>
     <div class="mf"><button class="btn primary" data-a="qrPrint">พิมพ์ทั้งหมด</button></div>`,'wide')};
 A.qrPrint=()=>printHTML((window._qrCards||[]).map(c=>`<div class="receipt" style="page-break-after:always;text-align:center"><div class="big">${esc(S.settings.shopName)}</div><div style="font-size:22px;font-weight:700;margin:6px 0">${esc(c.label)}</div><img src="${c.img}" style="width:62mm;height:62mm" alt=""><div>สแกนเพื่อดูเมนูและสั่งอาหาร</div></div>`).join(''));
 
 /* auto-push menu/tables for QR page & other devices */
-function cfgPayload(){const c=JSON.parse(JSON.stringify({settings:S.settings,pay:S.pay,cats:S.cats,menu:S.menu,zones:S.zones,tables:S.tables,decos:S.decos}));c.menu.forEach(m=>m.img='');c.settings.qrImage='';delete c.settings.device;return c}
+function cfgPayload(){const c=JSON.parse(JSON.stringify({settings:S.settings,pay:S.pay,cats:S.cats,menu:S.menu,zones:S.zones,tables:S.tables,decos:S.decos}));c.menu.forEach(m=>{m.img='';delete m.imgSrc});c.settings.qrImage='';delete c.settings.device;return c}
 function strHash(s){let h=5381;for(let i=0;i<s.length;i++)h=(h*33+s.charCodeAt(i))|0;return String(h)}
+let cfgVer='',cfgWarned=false;
+function applyCfg(c,ver){const imgs={},src={};S.menu.forEach(m=>{imgs[m.id]=m.img;src[m.id]=m.imgSrc});
+  const st=S.settings;const keep={device:st.device,qrImage:st.qrImage,gasUrl:st.gasUrl,mainDevice:st.mainDevice,uiScale:st.uiScale,paper:st.paper,kitchen:st.kitchen,lockMin:st.lockMin,publicUrl:st.publicUrl,kfcImg:st.kfcImg};
+  Object.assign(S,{pay:c.pay,cats:c.cats,menu:c.menu.map(m=>({...m,img:imgs[m.id]||'',imgSrc:src[m.id]})),zones:c.zones,tables:c.tables,decos:c.decos||[]});
+  S.settings={...S.settings,...c.settings,...keep};S.demo=false;S.cfgVer=ver||S.cfgVer;S.cfgHash=strHash(JSON.stringify(cfgPayload()));saveNow();applyTheme();
+  if(S.menu.some(m=>m.kfcId&&!m.img)&&st.kfcImg!==false){api('GET',{action:'costs'}).then(j=>{S.costCache={at:Date.now(),items:j.items||[]};pullKfcPhotos()}).catch(()=>{})}
+  if(!$('#modalRoot').innerHTML&&view!=='settings')render()}
+async function autoPullCfg(){if(!S.settings.gasUrl||!navigator.onLine)return;
+  try{const j=await api('GET',{action:'getConfig',since:S.cfgVer||''});if(j.same||!j.config)return;
+    const from=(j.config.meta||{}).device;
+    if(S.settings.mainDevice){if(from&&from!==S.settings.device&&!cfgWarned){cfgWarned=true;toast('เครื่อง '+from+' ก็ตั้งเป็นเครื่องหลักอยู่ ให้ปิด "เครื่องหลัก" เหลือเครื่องเดียว')}S.cfgVer=j.ver;return}
+    applyCfg(j.config,j.ver);toast('อัปเดตเมนูจากเครื่องหลักแล้ว')}catch(e){}}
 async function autoPushCfg(){if(!S.settings.mainDevice||!S.settings.gasUrl||!navigator.onLine)return;const c=cfgPayload();const h=strHash(JSON.stringify(c));if(h===S.cfgHash)return;
-  try{await api('POST',null,{action:'saveConfig',config:c});S.cfgHash=h;saveNow()}catch(e){}}
+  try{c.meta={device:S.settings.device,at:Date.now()};await api('POST',null,{action:'saveConfig',config:c});S.cfgHash=h;S.cfgVer='';saveNow()}catch(e){}}
 
 /* ================= v3: MEMBERS ================= */
 function mset(){return S.settings.member||{}}
