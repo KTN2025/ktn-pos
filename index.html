@@ -414,7 +414,7 @@ function defaults(){
       vat:{mode:'none',rate:7}, service:{on:false,rate:10},
       types:{dine:true,take:true,delivery:true},
       channels:['หน้าร้าน','LINE MAN','Grab','ShopeeFood','Robinhood','โทรสั่ง'],
-      longMinutes:60, kfcShop:'', kfcPrice:false,
+      longMinutes:60, kfcShop:'', kfcPrice:false, kfcImg:true,
       requireShift:true, discountMgr:false, lockMin:0, defaultFloat:1000, paper:80, uiScale:1,
       theme:{preset:'leaf',brand:'#0F5A48',accent:'#E3A21A',mode:'auto'},
       kitchen:{on:true,print:true,kds:false,onPay:true,qrAuto:false}, qr:{on:false},
@@ -1109,6 +1109,18 @@ async function pullCosts(){
   }
 }
 let costMatch=null;
+function shrinkImg(src,max){return new Promise(res=>{if(!/^data:image/.test(src)){res(src);return}const img=new Image();img.onload=()=>{try{const sc=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.72))}catch(e){res(src)}};img.onerror=()=>res('');img.src=src})}
+async function pullKfcPhotos(){
+  const has=new Set(S.costCache.items.filter(x=>x.hasImg).map(x=>x.id));
+  const want=S.menu.filter(m=>m.kfcId&&has.has(m.kfcId)&&(!m.img||m.imgSrc==='kfc'));
+  if(!want.length)return;
+  toast('กำลังดึงรูปเมนู '+want.length+' รูป…');let n=0;
+  for(let i=0;i<want.length;i+=10){const part=want.slice(i,i+10);
+    try{const j=await api('GET',{action:'fcPhotos',ids:part.map(m=>m.kfcId).join(',')});
+      for(const m of part){const src=(j.photos||{})[m.kfcId];if(src){const small=await shrinkImg(src,320);if(small){m.img=small;m.imgSrc='kfc';n++}}}
+      saveNow()}catch(e){toast('ดึงรูปไม่สำเร็จ: '+e.message);break}}
+  if(n){toast('ดึงรูปเมนูแล้ว '+n+' รูป');if(view==='sell')renderGrid();else if(view==='settings')renderSettings()}
+}
 function kfcShops(){const set=new Set();S.costCache.items.forEach(x=>(x.shops||[]).forEach(v=>set.add(v)));return [...set]}
 function applyCosts(){
   const st=S.settings,shop=st.kfcShop;
@@ -1122,7 +1134,8 @@ function applyCosts(){
   const shops=kfcShops();
   modal(mh('ต้นทุนจาก K-Food cost')+`<div class="mb"><div class="form" style="max-width:none">
     <div class="row2"><div class="field"><label for="kfcShop">สาขาใน K-Food cost ที่ใช้กับ POS เครื่องนี้</label><select id="kfcShop"><option value="">ทุกสาขา</option>${shops.map(v=>`<option ${v===shop?'selected':''}>${esc(v)}</option>`).join('')}</select></div>
-    ${T('อัปเดตราคาขายตาม K-Food cost ด้วย','ถ้าปิด จะอัปเดตเฉพาะต้นทุน','kfcp',st.kfcPrice)}</div>
+    ${T('อัปเดตราคาขายตาม K-Food cost ด้วย','ถ้าปิด จะอัปเดตเฉพาะต้นทุน','kfcp',st.kfcPrice)}
+    ${T('ใช้รูปเมนูจาก K-Food cost','ไม่ทับรูปที่เลือกเองใน POS','kfci',st.kfcImg!==false)}</div>
     <p style="margin:0">จับคู่ได้ <b>${matched.length}</b> เมนู · มีใน K-Food cost แต่ยังไม่มีใน POS <b>${missing.length}</b> · เมนูใน POS ที่หาสูตรไม่เจอ <b>${unmatched.length}</b></p>
     <div class="tbl-wrap"><table class="data"><thead><tr><th>เมนู</th><th class="r">ต้นทุนเดิม</th><th class="r">ต้นทุนใหม่</th><th class="r">ราคาขาย</th><th class="r">กำไร</th></tr></thead><tbody>${matched.map(({m,x})=>{const pr=st.kfcPrice&&x.price?x.price:m.price;return `<tr><td>${esc(m.name)}${x.cost?'':' <span class="pill bad">ต้นทุน 0</span>'}</td><td class="r num">${fmt(m.cost||0)}</td><td class="r num"><b>${fmt(x.cost)}</b></td><td class="r num">${fmt(pr)}${st.kfcPrice&&x.price&&x.price!==m.price?' <small class="lbl">(เดิม '+fmt(m.price)+')</small>':''}</td><td class="r num">${pr?Math.round((pr-x.cost)/pr*100)+'%':'—'}</td></tr>`}).join('')||'<tr><td colspan="5" class="lbl">ยังไม่มีเมนูที่ชื่อตรงกัน กดเพิ่มเมนูจากรายการด้านล่างได้เลย</td></tr>'}</tbody></table></div>
     ${missing.length?`<div class="sect"><h3>เพิ่มเป็นเมนูใหม่ใน POS</h3><button class="btn sm" data-a="kfcAll">เลือกทั้งหมด</button></div><div class="optgrid">${missing.map((x,i)=>`<label class="opt"><span><input type="checkbox" class="addm" value="${i}"> ${esc(x.name)}${x.cost?'':' <span class="pill bad">ต้นทุน 0</span>'}<br><small class="lbl">${esc((x.shops||[]).join(', ')||'ไม่ระบุสาขา')}</small></span><span class="num">${x.price?'฿'+fmt(x.price):''}</span></label>`).join('')}</div>`:''}
@@ -1130,6 +1143,7 @@ function applyCosts(){
   </div></div><div class="mf"><button class="btn" data-a="close">ยกเลิก</button><button class="btn primary" data-a="applyCosts">อัปเดต${missing.length?' + เพิ่มเมนูที่เลือก':''}</button></div>`,'wide');
   $('#kfcShop').addEventListener('change',e=>{S.settings.kfcShop=e.target.value;save();applyCosts()});
   $('#t_kfcp').addEventListener('change',e=>{S.settings.kfcPrice=e.target.checked;save();applyCosts()});
+  $('#t_kfci').addEventListener('change',e=>{S.settings.kfcImg=e.target.checked;save()});
 }
 
 /* ================= actions ================= */
@@ -1242,7 +1256,8 @@ const A={
     const picks=[...document.querySelectorAll('.addm:checked')].map(cb=>missing[+cb.value]);
     picks.forEach(x=>{const cname=st.kfcShop||((x.shops&&x.shops[0])||'เมนูจาก K-Food cost');let c=S.cats.find(c=>c.name===cname);if(!c){c={id:uid(),name:cname};S.cats.push(c)}
       S.menu.push({id:uid(),kfcId:x.id||'',name:x.name,cat:c.id,price:+x.price||0,cost:r2(x.cost),costSrc:'kfc',opts:[],img:'',on:true,out:false})});
-    save();closeModal();if(view==='settings')renderSettings();else render();toast('อัปเดตต้นทุน '+matched.length+' เมนู'+(picks.length?' · เพิ่มเมนูใหม่ '+picks.length:''))},
+    save();closeModal();if(view==='settings')renderSettings();else render();toast('อัปเดตต้นทุน '+matched.length+' เมนู'+(picks.length?' · เพิ่มเมนูใหม่ '+picks.length:''));
+    if(st.kfcImg!==false)pullKfcPhotos()},
   kfcAll(){document.querySelectorAll('.addm').forEach(c=>c.checked=true)},
   ezone(el){editZone=el.dataset.id;selTbl=null;setPlan()},
   zoneAdd(){const z={id:uid(),name:'โซน '+(S.zones.length+1)};S.zones.push(z);editZone=z.id;save();setPlan()},
@@ -1748,7 +1763,7 @@ document.addEventListener('click',e=>{if(longPressed&&e.target.closest('.item'))
 $('#fileImg').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
   const rd=new FileReader();rd.onload=()=>{const img=new Image();img.onload=()=>{const max=imgTarget==='qr'?600:320;const sc=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);
     const url=c.toDataURL('image/jpeg',imgTarget==='qr'?.9:.72);
-    if(imgTarget==='qr'){S.settings.qrImage=url;save();setPay()}else{menuDraft.img=url;const el=$('#mimg');el.style.backgroundImage=`url('${url}')`;el.textContent=''}};img.src=rd.result};rd.readAsDataURL(f)});
+    if(imgTarget==='qr'){S.settings.qrImage=url;save();setPay()}else{menuDraft.img=url;menuDraft.imgSrc='own';const el=$('#mimg');el.style.backgroundImage=`url('${url}')`;el.textContent=''}};img.src=rd.result};rd.readAsDataURL(f)});
 $('#fileJson').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);if(!d.settings||!d.menu)throw 0;S=d;saveNow();render();toast('กู้คืนข้อมูลแล้ว')}catch(err){toast('ไฟล์ไม่ถูกต้อง เลือกไฟล์ .json ที่ได้จากปุ่มสำรองข้อมูล')}};rd.readAsText(f)});
 window.addEventListener('online',()=>{updateSync();sync(false)});
 window.addEventListener('offline',updateSync);
