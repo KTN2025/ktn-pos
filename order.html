@@ -24,6 +24,9 @@ header .tb{display:inline-block;margin-top:8px;background:rgba(255,255,255,.18);
 main{padding:0 16px;display:grid;gap:10px;max-width:720px;margin:0 auto}
 h2{font-family:var(--fd);font-size:18px;margin:14px 0 2px}
 .it{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--surface);border-radius:14px;padding:12px 14px;text-align:left;width:100%;border:1px solid var(--line)}
+.it .th{width:84px;height:84px;border-radius:12px;background:var(--sunk);flex:none;overflow:hidden}
+.it .th img{width:100%;height:100%;object-fit:cover;display:block}
+.it .tx{flex:1;min-width:0}
 .it b{display:block}.it .p{color:var(--brand);font-weight:700}
 .it.out{opacity:.45}
 .it .q{background:var(--accent);color:#1d1400;border-radius:12px;min-width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:700}
@@ -61,18 +64,20 @@ input[type=text],textarea{width:100%;border:1px solid var(--line);background:var
 const P=new URLSearchParams(location.search),API=P.get('api')||'',TID=P.get('t')||'',TNAME=P.get('n')||'';
 const $=s=>document.querySelector(s),esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>(Math.round(n*100)/100).toLocaleString('th-TH');
-let M=null,cart=[],cat='all';const KEY='ktn-order-'+TID;
+let M=null,cart=[],cat='all';const PH={};const KEY='ktn-order-'+TID;
 try{cart=JSON.parse(sessionStorage.getItem(KEY)||'[]')}catch(e){}
 function keep(){try{sessionStorage.setItem(KEY,JSON.stringify(cart))}catch(e){}}
 async function get(params){const r=await fetch(API+(API.includes('?')?'&':'?')+new URLSearchParams(params));const j=await r.json();if(j.error)throw new Error(j.error);return j}
 async function post(body){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});const j=await r.json();if(j.error)throw new Error(j.error);return j}
+async function loadPhotos(){const ids=[...new Set(M.menu.map(m=>m.kfcId).filter(Boolean))];
+  for(let i=0;i<ids.length;i+=8){try{const j=await get({action:'fcPhotos',ids:ids.slice(i,i+8).join(',')});Object.assign(PH,j.photos||{});if(!$('#sheet').innerHTML)render()}catch(e){break}}}
 function unit(l){return l.price+l.opts.reduce((a,o)=>a+(+o.price||0),0)}
 function total(){return cart.reduce((a,l)=>a+unit(l)*l.qty,0)}
 function render(){
   const cats=M.cats.filter(c=>M.menu.some(m=>m.cat===c.id));
   $('#cats').innerHTML=`<button class="chip ${cat==='all'?'on':''}" data-c="all">ทั้งหมด</button>`+cats.map(c=>`<button class="chip ${cat===c.id?'on':''}" data-c="${c.id}">${esc(c.name)}</button>`).join('');
   const cnt={};cart.forEach(l=>cnt[l.mid]=(cnt[l.mid]||0)+l.qty);
-  $('#list').innerHTML=cats.filter(c=>cat==='all'||c.id===cat).map(c=>`<h2>${esc(c.name)}</h2>`+M.menu.filter(m=>m.cat===c.id).map(m=>`<button class="it ${m.out?'out':''}" data-m="${m.id}" ${m.out?'disabled':''}><span><b>${esc(m.name)}</b><span class="p num">฿${fmt(m.price)}</span>${m.out?' · หมด':''}</span>${cnt[m.id]?`<span class="q num">${cnt[m.id]}</span>`:'<span class="q" style="background:var(--sunk);color:var(--brand)">+</span>'}</button>`).join('')).join('');
+  $('#list').innerHTML=cats.filter(c=>cat==='all'||c.id===cat).map(c=>`<h2>${esc(c.name)}</h2>`+M.menu.filter(m=>m.cat===c.id).map(m=>`<button class="it ${m.out?'out':''}" data-m="${m.id}" ${m.out?'disabled':''}>${PH[m.kfcId]?`<span class="th"><img src="${PH[m.kfcId]}" alt="" loading="lazy"></span>`:''}<span class="tx"><b>${esc(m.name)}</b><span class="p num">฿${fmt(m.price)}</span>${m.out?' · หมด':''}</span>${cnt[m.id]?`<span class="q num">${cnt[m.id]}</span>`:'<span class="q" style="background:var(--sunk);color:var(--brand)">+</span>'}</button>`).join('')).join('');
   const n=cart.reduce((a,l)=>a+l.qty,0);$('#bar').hidden=!n;$('#cartN').textContent='ดูตะกร้า · '+n+' รายการ';$('#cartT').textContent='฿'+fmt(total());
 }
 function itemSheet(m){let qty=1;const sel=new Set();
@@ -113,7 +118,7 @@ $('#cartBtn').onclick=cartSheet;
     if(M.theme&&M.theme.brand){document.documentElement.style.setProperty('--brand',M.theme.brand);document.documentElement.style.setProperty('--accent',M.theme.accent||'#E3A21A')}
     document.title=M.shopName+' · สั่งอาหาร';$('#shop').textContent=M.shopName;const tb=$('#tbl');tb.hidden=false;tb.textContent=TNAME?'โต๊ะ '+TNAME:'สั่งกลับบ้าน';
     if(!M.qrOn){$('#list').innerHTML='<div class="msg"><h2>ตอนนี้ร้านยังไม่เปิดรับออเดอร์ทาง QR</h2><p>กรุณาสั่งกับพนักงาน</p></div>';return}
-    render()}catch(e){$('#shop').textContent='โหลดเมนูไม่สำเร็จ';$('#list').innerHTML=`<div class="msg">${esc(e.message)}<br><br><button class="btn2" onclick="location.reload()">ลองใหม่</button></div>`}})();
+    render();loadPhotos()}catch(e){$('#shop').textContent='โหลดเมนูไม่สำเร็จ';$('#list').innerHTML=`<div class="msg">${esc(e.message)}<br><br><button class="btn2" onclick="location.reload()">ลองใหม่</button></div>`}})();
 })();
 </script>
 </body>
