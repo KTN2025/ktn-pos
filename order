@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>สั่งอาหาร</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&family=Bai+Jamjuree:wght@600;700&display=swap">
+<style>
+:root{--brand:#0F5A48;--brand-ink:#fff;--accent:#E3A21A;--bg:#F3F5F3;--surface:#fff;--sunk:#E8ECEA;--ink:#17201D;--muted:#5D6B66;--line:#DDE3E0;--danger:#B93A27;
+  --f:"Anuphan","Sukhumvit Set","Thonburi","Noto Sans Thai",system-ui,sans-serif;--fd:"Bai Jamjuree","Anuphan",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#0E1311;--surface:#161D1A;--sunk:#1E2723;--ink:#E5ECE9;--muted:#95A49E;--line:#2A3430;color-scheme:dark}}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 var(--f);-webkit-tap-highlight-color:transparent;padding-bottom:110px}
+button,input,textarea{font:inherit;color:inherit}button{cursor:pointer;border:0;background:none}
+header{background:var(--brand);color:var(--brand-ink);padding:calc(18px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px))}
+header h1{font-family:var(--fd);font-size:24px;margin:0}
+header .tb{display:inline-block;margin-top:8px;background:rgba(255,255,255,.18);border-radius:10px;padding:4px 12px;font-weight:600}
+.cats{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;padding:10px 16px;background:var(--bg);scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.chip{flex:none;height:38px;padding:0 16px;border-radius:19px;background:var(--surface);border:1px solid var(--line);font-weight:500;white-space:nowrap}
+.chip.on{background:var(--ink);color:var(--surface)}
+main{padding:0 16px;display:grid;gap:10px;max-width:720px;margin:0 auto}
+h2{font-family:var(--fd);font-size:18px;margin:14px 0 2px}
+.it{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--surface);border-radius:14px;padding:12px 14px;text-align:left;width:100%;border:1px solid var(--line)}
+.it b{display:block}.it .p{color:var(--brand);font-weight:700}
+.it.out{opacity:.45}
+.it .q{background:var(--accent);color:#1d1400;border-radius:12px;min-width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:700}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:var(--surface);border-top:1px solid var(--line);z-index:9}
+.big{width:100%;height:56px;border-radius:14px;background:var(--brand);color:var(--brand-ink);font-size:18px;font-weight:700;display:flex;justify-content:space-between;align-items:center;padding:0 18px}
+.big:disabled{opacity:.4}
+.sheet{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet .in{background:var(--surface);width:100%;max-width:720px;max-height:90%;overflow:auto;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+.sheet h3{font-family:var(--fd);font-size:20px;margin:0 0 10px}
+.opt{display:flex;justify-content:space-between;border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px;width:100%}
+.opt.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,var(--surface))}
+.step{display:flex;align-items:center;gap:16px;justify-content:center;margin:12px 0}
+.step button{width:52px;height:52px;border-radius:14px;background:var(--sunk);font-size:26px;font-weight:700;color:var(--brand)}
+.step span{font-size:24px;font-weight:700;min-width:40px;text-align:center}
+input[type=text],textarea{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px;margin-top:6px}
+.row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.row small{color:var(--muted);display:block}
+.btn2{height:48px;border-radius:12px;background:var(--sunk);font-weight:600;padding:0 16px}
+.msg{text-align:center;padding:60px 16px;color:var(--muted)}
+.msg h2{color:var(--ink);font-size:24px}
+.ok{width:76px;height:76px;border-radius:50%;background:var(--brand);color:var(--brand-ink);font-size:40px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
+.vendor{text-align:center;font-size:12px;color:var(--muted);padding:24px 16px}
+.num{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<header><h1 id="shop">กำลังโหลดเมนู…</h1><div class="tb" id="tbl" hidden></div></header>
+<nav class="cats" id="cats"></nav>
+<main id="list"></main>
+<div class="vendor">ระบบโดย KTN BUSINESS SOLUTION CO.,LTD</div>
+<div class="bar" id="bar" hidden><button class="big" id="cartBtn"><span id="cartN">ดูตะกร้า</span><span class="num" id="cartT"></span></button></div>
+<div id="sheet"></div>
+<script>
+(function(){
+const P=new URLSearchParams(location.search),API=P.get('api')||'',TID=P.get('t')||'',TNAME=P.get('n')||'';
+const $=s=>document.querySelector(s),esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>(Math.round(n*100)/100).toLocaleString('th-TH');
+let M=null,cart=[],cat='all';const KEY='ktn-order-'+TID;
+try{cart=JSON.parse(sessionStorage.getItem(KEY)||'[]')}catch(e){}
+function keep(){try{sessionStorage.setItem(KEY,JSON.stringify(cart))}catch(e){}}
+async function get(params){const r=await fetch(API+(API.includes('?')?'&':'?')+new URLSearchParams(params));const j=await r.json();if(j.error)throw new Error(j.error);return j}
+async function post(body){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});const j=await r.json();if(j.error)throw new Error(j.error);return j}
+function unit(l){return l.price+l.opts.reduce((a,o)=>a+(+o.price||0),0)}
+function total(){return cart.reduce((a,l)=>a+unit(l)*l.qty,0)}
+function render(){
+  const cats=M.cats.filter(c=>M.menu.some(m=>m.cat===c.id));
+  $('#cats').innerHTML=`<button class="chip ${cat==='all'?'on':''}" data-c="all">ทั้งหมด</button>`+cats.map(c=>`<button class="chip ${cat===c.id?'on':''}" data-c="${c.id}">${esc(c.name)}</button>`).join('');
+  const cnt={};cart.forEach(l=>cnt[l.mid]=(cnt[l.mid]||0)+l.qty);
+  $('#list').innerHTML=cats.filter(c=>cat==='all'||c.id===cat).map(c=>`<h2>${esc(c.name)}</h2>`+M.menu.filter(m=>m.cat===c.id).map(m=>`<button class="it ${m.out?'out':''}" data-m="${m.id}" ${m.out?'disabled':''}><span><b>${esc(m.name)}</b><span class="p num">฿${fmt(m.price)}</span>${m.out?' · หมด':''}</span>${cnt[m.id]?`<span class="q num">${cnt[m.id]}</span>`:'<span class="q" style="background:var(--sunk);color:var(--brand)">+</span>'}</button>`).join('')).join('');
+  const n=cart.reduce((a,l)=>a+l.qty,0);$('#bar').hidden=!n;$('#cartN').textContent='ดูตะกร้า · '+n+' รายการ';$('#cartT').textContent='฿'+fmt(total());
+}
+function itemSheet(m){let qty=1;const sel=new Set();
+  const draw=()=>{$('#sheet').innerHTML=`<div class="sheet" data-x="1"><div class="in"><h3>${esc(m.name)}</h3>
+    ${m.opts.map(o=>`<button class="opt ${sel.has(o.name)?'on':''}" data-o="${esc(o.name)}"><span>${esc(o.name)}</span><span>${o.price?'+'+fmt(o.price):''}</span></button>`).join('')}
+    <div class="step"><button data-q="-1">−</button><span class="num">${qty}</span><button data-q="1">+</button></div>
+    <label>หมายเหตุ<input type="text" id="nt" placeholder="เช่น ไม่ใส่ผัก" value="${esc(note)}"></label>
+    <div style="height:12px"></div><button class="big" data-add="1"><span>ใส่ตะกร้า</span><span class="num">฿${fmt((m.price+m.opts.filter(o=>sel.has(o.name)).reduce((a,o)=>a+(+o.price||0),0))*qty)}</span></button></div></div>`};
+  let note='';draw();
+  $('#sheet').onclick=e=>{const t=e.target;if(t.dataset.x){$('#sheet').innerHTML='';return}
+    const o=t.closest('[data-o]'),q=t.closest('[data-q]'),a=t.closest('[data-add]');note=($('#nt')||{}).value||note;
+    if(o){const n=o.dataset.o;sel.has(n)?sel.delete(n):sel.add(n);draw()}
+    else if(q){qty=Math.max(1,qty+(+q.dataset.q));draw()}
+    else if(a){cart.push({mid:m.id,name:m.name,price:+m.price,qty,opts:m.opts.filter(o=>sel.has(o.name)),note:note.trim()});keep();$('#sheet').innerHTML='';render()}}}
+function cartSheet(){
+  $('#sheet').innerHTML=`<div class="sheet" data-x="1"><div class="in"><h3>ตะกร้าของคุณ${TNAME?' · โต๊ะ '+esc(TNAME):''}</h3>
+    ${cart.map((l,i)=>`<div class="row"><span>${l.qty} × ${esc(l.name)}<small>${esc([...l.opts.map(o=>o.name),l.note].filter(Boolean).join(', '))}</small></span><span style="display:flex;gap:8px;align-items:center"><b class="num">${fmt(unit(l)*l.qty)}</b><button class="btn2" data-del="${i}">ลบ</button></span></div>`).join('')}
+    <label style="display:block;margin-top:12px">หมายเหตุถึงร้าน<textarea id="on" rows="2" placeholder="${TID?'':'ชื่อผู้รับ / เวลามารับ'}"></textarea></label>
+    <div style="height:12px"></div><button class="big" id="send"><span>ยืนยันสั่งอาหาร</span><span class="num">฿${fmt(total())}</span></button>
+    <p style="color:var(--muted);font-size:13px;text-align:center">ชำระเงินที่ร้านหลังรับอาหาร</p></div></div>`;
+  $('#sheet').onclick=async e=>{const t=e.target;if(t.dataset.x){$('#sheet').innerHTML='';return}
+    const d=t.closest('[data-del]');if(d){cart.splice(+d.dataset.del,1);keep();render();if(!cart.length){$('#sheet').innerHTML='';return}cartSheet();return}
+    if(t.closest('#send')){const b=$('#send');b.disabled=true;b.firstElementChild.textContent='กำลังส่ง…';
+      try{const j=await post({action:'qrOrder',order:{tableId:TID,tableName:TNAME,note:$('#on').value,items:cart.map(l=>({mid:l.mid,qty:l.qty,opts:l.opts.map(o=>o.name),note:l.note}))}});
+        cart=[];keep();$('#sheet').innerHTML='';done(j.id,j.total)}catch(err){alertMsg(err.message);b.disabled=false;b.firstElementChild.textContent='ยืนยันสั่งอาหาร'}}}}
+function alertMsg(m){const d=document.createElement('div');d.style.cssText='position:fixed;left:16px;right:16px;bottom:90px;background:var(--danger);color:#fff;padding:12px 16px;border-radius:12px;z-index:30;text-align:center';d.textContent=m;document.body.appendChild(d);setTimeout(()=>d.remove(),3500)}
+function done(id,tot){$('#cats').innerHTML='';$('#bar').hidden=true;
+  $('#list').innerHTML=`<div class="msg"><div class="ok">✓</div><h2>ส่งออเดอร์แล้ว</h2><p class="num">ยอด ฿${fmt(tot)}</p><p id="st">รอร้านรับออเดอร์…</p><button class="btn2" id="more">สั่งเพิ่ม</button></div>`;
+  $('#more').onclick=()=>render();
+  let n=0;const poll=async()=>{try{const j=await get({action:'qrStatus',id});const el=$('#st');if(!el)return;
+    if(j.status==='รับแล้ว'){el.innerHTML='<b>ร้านรับออเดอร์แล้ว กำลังเตรียมอาหาร</b>';return}if(j.status==='ปฏิเสธ'){el.innerHTML='<b style="color:var(--danger)">ร้านไม่สามารถรับออเดอร์นี้ได้ กรุณาติดต่อพนักงาน</b>';return}}catch(e){}
+    if(++n<60)setTimeout(poll,5000)};setTimeout(poll,4000)}
+document.addEventListener('click',e=>{const c=e.target.closest('[data-c]');if(c){cat=c.dataset.c;render();return}
+  const m=e.target.closest('[data-m]');if(m&&!$('#sheet').innerHTML){const it=M.menu.find(x=>x.id===m.dataset.m);if(it.opts&&it.opts.length)itemSheet(it);else{const ex=cart.find(l=>l.mid===it.id&&!l.opts.length&&!l.note);if(ex)ex.qty++;else cart.push({mid:it.id,name:it.name,price:+it.price,qty:1,opts:[],note:''});keep();render()}}});
+$('#cartBtn').onclick=cartSheet;
+(async()=>{if(!API){$('#shop').textContent='ลิงก์ไม่ถูกต้อง';$('#list').innerHTML='<div class="msg">กรุณาสแกน QR ที่โต๊ะอีกครั้ง</div>';return}
+  try{const j=await get({action:'publicMenu'});M=j.menu;
+    if(M.theme&&M.theme.brand){document.documentElement.style.setProperty('--brand',M.theme.brand);document.documentElement.style.setProperty('--accent',M.theme.accent||'#E3A21A')}
+    document.title=M.shopName+' · สั่งอาหาร';$('#shop').textContent=M.shopName;const tb=$('#tbl');tb.hidden=false;tb.textContent=TNAME?'โต๊ะ '+TNAME:'สั่งกลับบ้าน';
+    if(!M.qrOn){$('#list').innerHTML='<div class="msg"><h2>ตอนนี้ร้านยังไม่เปิดรับออเดอร์ทาง QR</h2><p>กรุณาสั่งกับพนักงาน</p></div>';return}
+    render()}catch(e){$('#shop').textContent='โหลดเมนูไม่สำเร็จ';$('#list').innerHTML=`<div class="msg">${esc(e.message)}<br><br><button class="btn2" onclick="location.reload()">ลองใหม่</button></div>`}})();
+})();
+</script>
+</body>
+</html>
